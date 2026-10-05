@@ -1,141 +1,128 @@
-
 "use client";
-
-import Image from "next/image";
-import { useParams, notFound } from "next/navigation";
+import { useState } from "react";
+import Link from "next/link";
+import { Check, X } from "lucide-react";
 import { usePlan } from "@/context/PlanContext";
+import StatsRow from "@/components/StatsRow";
 import Spinner from "@/components/Spinner";
 
-export default function WorkoutDetails() {
-  const { id } = useParams<{ id: string }>();
+type Tab = "plan" | "saved";
 
-  const {
-    workouts,
-    loading,
-    addToPlan,
-    save,
-    inPlan,
-    isSaved,
-    planFull,
-  } = usePlan();
+const TABS: [Tab, string][] = [
+  ["plan", "Today's Plan"],
+  ["saved", "Saved"],
+];
 
-  if (loading) {
-    return <Spinner />;
-  }
+export default function MyPlan() {
+  const { plan, saved, loading, markDone, removeFromPlan, removeFromSaved } = usePlan();
+  const [tab, setTab] = useState<Tab>("plan");
 
-  const w = workouts.find((x) => x.id === Number(id));
-
-  if (!w) {
-    return notFound();
-  }
-
-  const specs: [string, string | number][] = [
-    ["Equipment", w.equipment],
-    ["Difficulty", w.difficulty],
-    ["Sets", w.sets],
-    ["Reps", w.reps],
-    ["Duration", `${w.duration} min`],
-    ["Calories", `${w.caloriesBurned} kcal`],
-    ["Rating", w.rating],
+  const list = tab === "plan" ? plan : saved;
+  const stats: [string, number][] = [
+    ["Exercises", plan.length],
+    ["Minutes", plan.reduce((s, w) => s + w.duration, 0)],
+    ["Calories", plan.reduce((s, w) => s + w.caloriesBurned, 0)],
   ];
 
-  const planDisabled = inPlan(w.id) || planFull;
-
   return (
-    <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2">
-      <Image
-        src={w.image}
-        alt={w.name}
-        width={600}
-        height={600}
-        className="aspect-square w-full rounded-xl border border-line object-cover"
-      />
+    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      <h1 className="font-display text-4xl uppercase sm:text-5xl">My Plan</h1>
+      <p className="mt-1 text-muted">Cap of five lifts for today. Finish them, then load more.</p>
 
-      <div>
-        <h1 className="font-display text-4xl uppercase sm:text-5xl">
-          {w.name}
-        </h1>
+      <div className="mt-8 grid grid-cols-3 gap-3">
+        {stats.map(([label, val]) => (
+          <div key={label} className="rounded-lg border border-line bg-card p-4">
+            <p className="font-display text-3xl text-accent">{val}</p>
+            <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
+          </div>
+        ))}
+      </div>
 
-        <p className="mt-3 text-muted">
-          {w.description}
-        </p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {w.muscleGroups.map((m) => (
-            <span
-              key={m}
-              className="rounded-full border border-line px-3 py-1 text-xs font-semibold uppercase text-accent"
-            >
-              {m}
-            </span>
-          ))}
-        </div>
-
-        <h2 className="mt-8 font-display text-xl uppercase">
-          Key Specs
-        </h2>
-
-        <dl className="mt-3 divide-y divide-line rounded-lg border border-line bg-card">
-          {specs.map(([k, v]) => (
-            <div
-              key={k}
-              className="flex justify-between px-4 py-3 text-sm"
-            >
-              <dt className="uppercase tracking-wider text-muted">
-                {k}
-              </dt>
-
-              <dd className="font-semibold">
-                {v}
-              </dd>
-            </div>
-          ))}
-        </dl>
-
-        <h2 className="mt-8 font-display text-xl uppercase">
-          Instructions
-        </h2>
-
-        <ol className="mt-3 space-y-3">
-          {w.instructions.map((s, i) => (
-            <li key={i} className="flex gap-3">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent text-sm font-bold text-black">
-                {i + 1}
-              </span>
-
-              <span className="text-muted">
-                {s}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-8 flex gap-2 border-b border-line">
+        {TABS.map(([key, label]) => (
           <button
-            onClick={() => addToPlan(w)}
-            disabled={planDisabled}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-accent px-6 py-3 font-bold text-black disabled:cursor-not-allowed disabled:opacity-50"
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2 text-sm font-semibold uppercase tracking-wider ${
+              tab === key ? "border-b-2 border-accent text-accent" : "text-muted"
+            }`}
           >
-            <span>+</span>
-            Add to today&apos;s plan
+            {label}
           </button>
+        ))}
+      </div>
 
-          <button
-            onClick={() => save(w)}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-line px-6 py-3 font-bold hover:border-accent"
-          >
-            <span>🔖</span>
-            {isSaved(w.id) ? "Saved" : "Save for later"}
-          </button>
-        </div>
-
-        {planFull && !inPlan(w.id) && (
-          <p className="mt-2 text-xs text-muted">
-            Today&apos;s plan is full (5 lifts).
-          </p>
+      <div className="mt-6">
+        {loading ? (
+          <Spinner label="Loading workouts…" />
+        ) : list.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line py-16 text-center">
+            <h2 className="font-display text-3xl uppercase">Nothing here yet</h2>
+            <p className="mt-2 text-muted">
+              Browse the library and add a lift to get today moving.
+            </p>
+            <Link
+              href="/"
+              className="mt-6 inline-block rounded-md bg-accent px-6 py-3 font-bold text-black"
+            >
+              Go to workouts
+            </Link>
+          </div>
+        ) : (
+          <ul className="space-y-4">
+            {list.map((w) => (
+              <li
+                key={w.id}
+                className="flex flex-col gap-4 rounded-xl border border-line bg-card p-4 sm:flex-row sm:items-center"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={w.image}
+                  alt={w.name}
+                  className="h-24 w-full rounded-lg object-cover sm:w-32"
+                />
+                <div className="flex-1 space-y-1">
+                  <h3
+                    className={`font-display text-xl uppercase ${
+                      w.done ? "line-through opacity-60" : ""
+                    }`}
+                  >
+                    {w.name}
+                  </h3>
+                  <p className="text-sm text-muted">{w.equipment}</p>
+                  <StatsRow w={w} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/workout/${w.id}`}
+                    className="rounded-md border border-line px-3 py-2 text-sm hover:border-accent"
+                  >
+                    View Details
+                  </Link>
+                  {tab === "plan" && (
+                    <button
+                      onClick={() => markDone(w.id)}
+                      disabled={w.done}
+                      className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-2 text-sm font-bold text-black disabled:opacity-50"
+                    >
+                      <Check size={16} /> {w.done ? "Done" : "Mark as Done"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      tab === "plan" ? removeFromPlan(w.id) : removeFromSaved(w.id)
+                    }
+                    aria-label={`Remove ${w.name}`}
+                    className="rounded-md border border-line p-2 hover:border-red-400 hover:text-red-400"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
   );
 }
-
